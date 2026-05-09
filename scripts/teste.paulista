@@ -1,0 +1,27 @@
+bora
+
+# dobra o valor do input
+missao cheio dobro(cheio num) {
+    volta num * 2;
+}
+
+pprt("Digite um número: ");
+cheio num = mandaopapo();
+pprt(dobro(num));
+
+peao(cheio i = 0; i < 10; i++) {
+    pprt(i);
+}
+
+cheio j = 0;
+cheio k = 0;
+fazocorre (k < 10) {
+    se (j < 10) {
+        k++;
+        pprt(k);
+    } sepa (k == 10) {
+        vaza;
+    }
+}
+
+fechou
