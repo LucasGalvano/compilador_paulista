@@ -59,12 +59,12 @@ class AnalisadorSemantico:
     def _aviso(self, msg: str, linha: int):
         self.avisos.append(f"Aviso: linha {linha} — {msg}")
 
-    # entrada principal
+    # entrada principal 
     def analisar(self):
         self._visitar(self.ast)
         return not self.erros
 
-    # dispatcher
+    # dispatcher 
     def _visitar(self, no: No):
         metodo = getattr(self, f"_visit_{no.tipo}", self._visit_generico)
         metodo(no)
@@ -73,17 +73,17 @@ class AnalisadorSemantico:
         for filho in no.filhos:
             self._visitar(filho)
 
-    # programa
+    # programa 
     def _visit_programa(self, no: No):
         for filho in no.filhos:
             self._visitar(filho)
 
-    # bloco
+    # bloco 
     def _visit_bloco(self, no: No):
         for filho in no.filhos:
             self._visitar(filho)
 
-    # declaração
+    # declaração 
     def _visit_declara(self, no: No):
         # filhos: [tipo, id, (expr opcional)]
         no_tipo = no.filhos[0]
@@ -100,7 +100,7 @@ class AnalisadorSemantico:
         if len(no.filhos) > 2:
             self._visitar(no.filhos[2])
 
-    # uso de identificador
+    # uso de identificador 
     def _visit_id(self, no: No):
         nome  = no.valor
         linha = no.linha
@@ -108,18 +108,52 @@ class AnalisadorSemantico:
         if info is None:
             self._erro(f"variável '{nome}' usada sem ser declarada", linha, nome)
 
-    # atribuição / sufixo de ID
+    # auxiliar: valida chamada de função     
+    # Reutilizado por _visit_cmdSufID_stmt e _visit_chamadaFuncao
+    def _validar_chamada(self, nome: str, no_args: No, linha: int):
+        """Verifica se 'nome' é função declarada e se a aridade bate."""
+        info = self.tabela.buscar(nome)
+        if info is None:
+            self._erro(f"função '{nome}' chamada sem ser declarada", linha, nome)
+            return
+        if not info["tipo"].startswith("funcao:"):
+            self._erro(f"'{nome}' não é uma função", linha, nome)
+            return
+        n_esperado = int(info["tipo"].split(":")[2])
+        # conta apenas filhos que não são epsilon
+        n_recebido = len([f for f in no_args.filhos if f.tipo != "epsilon"])
+        if n_recebido != n_esperado:
+            self._erro(
+                f"função '{nome}' espera {n_esperado} argumento(s), "
+                f"mas recebeu {n_recebido}",
+                linha, nome
+            )
+
+    # atribuição / sufixo de ID 
     def _visit_cmdSufID_stmt(self, no: No):
-        # filhos[0] = id (lado esquerdo da atribuição)
         no_id = no.filhos[0]
         nome  = no_id.valor
         linha = no.linha
-        info  = self.tabela.buscar(nome)
-        if info is None:
-            self._erro(f"variável '{nome}' usada sem ser declarada", linha, nome)
-        # visita o lado direito
-        for filho in no.filhos[1:]:
-            self._visitar(filho)
+
+        if len(no.filhos) < 2:
+            return
+
+        sufixo = no.filhos[1]
+
+        if sufixo.tipo == "args":
+            # chamada de função como comando: soma(1, 2);
+            # não verifica na tabela de variáveis — verifica como função
+            self._validar_chamada(nome, sufixo, linha)
+            # visita os argumentos para checar uso de variáveis dentro deles
+            self._visitar(sufixo)
+        else:
+            # atribuição, ++ ou -- → nome deve ser variável declarada
+            info = self.tabela.buscar(nome)
+            if info is None:
+                self._erro(f"variável '{nome}' usada sem ser declarada", linha, nome)
+            # visita o lado direito (expr, input, op)
+            for filho in no.filhos[1:]:
+                self._visitar(filho)
 
     # if / elseif / else 
     def _visit_cmdIf(self, no: No):
@@ -144,7 +178,7 @@ class AnalisadorSemantico:
         self._visitar(no.filhos[0])
         self.tabela.sair_escopo()
 
-    # while
+    # while 
     def _visit_cmdWhile(self, no: No):
         self._visitar(no.filhos[0])  # condição
         self._dentro_laco += 1
@@ -153,7 +187,7 @@ class AnalisadorSemantico:
         self.tabela.sair_escopo()
         self._dentro_laco -= 1
 
-    # for
+    # for 
     def _visit_cmdFor(self, no: No):
         # filhos: [initFor, cond, updateFor, bloco]
         self.tabela.entrar_escopo()
@@ -185,7 +219,7 @@ class AnalisadorSemantico:
         for filho in no.filhos:
             self._visitar(filho)
 
-    # break / continue
+    # break / continue 
     def _visit_cmdBreak(self, no: No):
         if self._dentro_laco == 0:
             self._erro("'vaza' usado fora de um laço", no.linha, "vaza")
@@ -194,19 +228,19 @@ class AnalisadorSemantico:
         if self._dentro_laco == 0:
             self._erro("'segue' usado fora de um laço", no.linha, "segue")
 
-    # return
+    # return 
     def _visit_cmdReturn(self, no: No):
         if self._dentro_funcao == 0:
             self._erro("'volta' usado fora de uma função", no.linha, "volta")
         for filho in no.filhos:
             self._visitar(filho)
 
-    # print
+    # print 
     def _visit_cmdPrint(self, no: No):
         for filho in no.filhos:
             self._visitar(filho)
 
-    # definição de função
+    # definição de função 
     def _visit_defFuncao(self, no: No):
         # filhos: [tipo, id, params, bloco]
         no_tipo = no.filhos[0]
@@ -247,39 +281,21 @@ class AnalisadorSemantico:
         if not ok:
             self._erro(f"parâmetro '{no_id.valor}' duplicado", no.linha, no_id.valor)
 
-    # chamada de função 
+    # chamada de função (em expressão) 
     def _visit_chamadaFuncao(self, no: No):
         # filhos: [id, args]
         no_id = no.filhos[0]
         nome  = no_id.valor
         linha = no.linha
-        info  = self.tabela.buscar(nome)
-
-        if info is None:
-            self._erro(f"função '{nome}' chamada sem ser declarada", linha, nome)
-        elif not info["tipo"].startswith("funcao:"):
-            self._erro(f"'{nome}' não é uma função", linha, nome)
-        else:
-            # verifica número de argumentos
-            n_esperado = int(info["tipo"].split(":")[2])
-            no_args    = no.filhos[1]
-            n_recebido = len([f for f in no_args.filhos if f.tipo != "epsilon"])
-            if n_recebido != n_esperado:
-                self._erro(
-                    f"função '{nome}' espera {n_esperado} argumento(s), "
-                    f"mas recebeu {n_recebido}",
-                    linha, nome
-                )
-
-        # visita os argumentos
-        if len(no.filhos) > 1:
-            self._visitar(no.filhos[1])
+        no_args = no.filhos[1] if len(no.filhos) > 1 else No("args")
+        self._validar_chamada(nome, no_args, linha)
+        self._visitar(no_args)
 
     def _visit_args(self, no: No):
         for filho in no.filhos:
             self._visitar(filho)
 
-    # expressões (visitam filhos normalmente)
+    # expressões (visitam filhos normalmente) 
     def _visit_exprLog(self, no: No):
         self._visit_generico(no)
 
@@ -295,7 +311,7 @@ class AnalisadorSemantico:
     def _visit_exprUnario(self, no: No):
         self._visit_generico(no)
 
-    # literais (não precisam de verificação)
+    # literais (não precisam de verificação) 
     def _visit_INT_NUM(self, no: No):   pass
     def _visit_FLOAT_NUM(self, no: No): pass
     def _visit_STRING(self, no: No):    pass

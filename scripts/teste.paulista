@@ -1,27 +1,36 @@
-bora
+bora 
 
-# dobra o valor do input
-missao cheio dobro(cheio num) {
-    volta num * 2;
+missao cheio fat(cheio n){
+    se (n <= 1){
+        volta 1;
+    }
+
+    volta n * fat(n - 1);
 }
 
 pprt("Digite um número: ");
 cheio num = mandaopapo();
-pprt(dobro(num));
+cheio resultado = fat(num);
+pprt(resultado);
 
-peao(cheio i = 0; i < 10; i++) {
-    pprt(i);
-}
 
-cheio j = 0;
-cheio k = 0;
-fazocorre (k < 10) {
-    se (j < 10) {
-        k++;
-        pprt(k);
-    } sepa (k == 10) {
-        vaza;
+missao cheio fibonacci(cheio fib){
+    cheio a = 0;
+    cheio b = 1;
+
+    pprt("Sequencia de Fibonacci");
+    
+    peao(cheio i = 0; i < fib; i++){
+        pprt(a);
+
+        cheio proximo = a + b;
+        a = b;
+        b = proximo;
     }
+
+    volta a;
 }
+
+fibonacci(10);
 
 fechou
